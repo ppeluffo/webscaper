@@ -18,7 +18,6 @@ class CNN:
         self.service = Service(executable_path=ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=self.service)
         self.base_url = "https://money.cnn.com/data/us_markets/"
-        self.d_sectors = None
         self.actual_url = None
         self.d_tickets = None
         self.df_sectores = None
@@ -55,7 +54,7 @@ class CNN:
             print('Reading url={}'.format(url))
         self.driver.get(url)
 
-    def scrap_sectors(self, verbose=False):
+    def scrap_sectors(self, verbose=False, save_to_file=False):
         if verbose:
             print('Reading Sectors...')
         self.read_url(url=self.base_url, verbose=verbose)
@@ -65,24 +64,23 @@ class CNN:
             print('Select Elements by XPATH returns Empty !!')
             return
         #
-        self.d_sectors = dict()
         s_names=[]
         s_urls=[]
         for link in links:
-            d=dict()
             sector_name = link.text
             sector_link = link.get_attribute('href')
             s_names.append(sector_name)
             s_urls.append(sector_link)
-            d['url'] = sector_link
-            self.d_sectors[sector_name] = d
             if verbose:
                 print('{0} ==> {1}'.format(sector_name, sector_link))
+        # Genero un DF con los datos
         self.df_sectores = pd.DataFrame(data={'sector':s_names, 'url':s_urls})
         self.df_sectores.set_index('sector')
+        if save_to_file:
+            self.df_sectores.to_csv(index=False)
 
     def get_sectors(self):
-        return self.d_sectors
+        return self.df_sectors
 
     def scrap_industries(self, verbose=False):
         if not self.d_sectors:
