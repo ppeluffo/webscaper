@@ -21,6 +21,7 @@ class CNN:
         self.actual_url = None
         self.d_tickets = None
         self.df_sectores = None
+        self.df_industries = None
 
     def set_url_base(self, url=None):
         self.base_url = url
@@ -54,9 +55,21 @@ class CNN:
             print('Reading url={}'.format(url))
         self.driver.get(url)
 
-    def scrap_sectors(self, verbose=False, save_to_file=False):
+    def read_sectors(self, file_name='sectores.csv'):
+        '''
+        Lee los sectores de un archivo
+        '''
+        print('Reading sectors from file...')
+        self.df_sectores = pd.read_csv(file_name, index_col='sector')
+        return self.df_sectores
+
+    def scrap_sectors(self, verbose=False, save_to_file=False, file_name='sectores.csv'):
+        '''
+        Lee los sectores de la web y los deja en un df.
+        '''
         if verbose:
-            print('Reading Sectors...')
+            print('Scrapping Sectors...')
+        start = time.time()
         self.read_url(url=self.base_url, verbose=verbose)
         links = self.driver.find_elements(By.XPATH, '//*[@id="wsod_sectorPerformance"]/table/tbody/tr/td/a')
         if not links:
@@ -75,22 +88,33 @@ class CNN:
                 print('{0} ==> {1}'.format(sector_name, sector_link))
         # Genero un DF con los datos
         self.df_sectores = pd.DataFrame(data={'sector':s_names, 'url':s_urls})
-        self.df_sectores.set_index('sector')
+        self.df_sectores.set_index('sector',inplace=True)
         if save_to_file:
-            self.df_sectores.to_csv(index=False)
+            self.df_sectores.to_csv(file_name)
+        #
+        end = time.time()
+        print('Elapsed time: %0.3f secs.' % (end - start))
+        return self.df_sectores
 
     def get_sectors(self):
-        return self.df_sectors
+        return self.df_sectores
 
-    def scrap_industries(self, verbose=False):
-        if not self.d_sectors:
-            self.scrap_sectors(verbose=verbose)
+    def read_industry(self, file_name='industries.csv'):
+        print('Reading industries from file...')
+        self.df_industries = pd.read_csv(file_name)
+        return self.df_industries
+
+    def scrap_industries(self, verbose=False, save_to_file=False, file_name='industries.csv'):
+        start = time.time()
+        if self.df_sectores is None:
+            print('Primero debe leer los sectores !!')
+            return
         if verbose:
-            print('Reading industries...')
-        for key in self.d_sectors.keys():
-            industries = []
-            sector_name = key
-            sector_url = self.d_sectors[sector_name]['url']
+            print('Scrapping industries...')
+
+        industries = []
+        for sector_name in self.df_sectores.index:
+            sector_url = self.df_sectores.loc[sector_name, 'url']
             self.read_url(url=sector_url, verbose=verbose)
             try:
                 dropdown = Select(self.driver.find_element(By.ID, 'wsod_industriesSelector'))
@@ -99,11 +123,21 @@ class CNN:
                 return
             options = dropdown.options
             for opt in options:
-                ind = opt.get_attribute('text')
-                industries.append(ind)
+                industry = opt.get_attribute('text')
                 if verbose:
-                    print('{0}:{1}'.format(sector_name, ind))
-            self.d_sectors[sector_name]['ind'] = industries
+                    print('{0}:{1}'.format(sector_name, industry))
+                industries.append({'sector': sector_name, 'industry': industry})
+        #
+        self.df_industries = pd.DataFrame(data=industries )
+        if save_to_file:
+            self.df_sectores.to_csv(file_name)
+        #
+        end = time.time()
+        print('Elapsed time: %0.3f secs.' % (end - start))
+        return self.df_industries
+
+    def get_industries(self):
+        return self.df_industries
 
     # --------------------------------------------
     def scrap_tickets(self, verbose=False):
